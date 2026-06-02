@@ -2,15 +2,15 @@ import math
 import random
 import numpy as np
 
-from brain import Brain
+from predator_brain import Brain
 
-PREDATOR_COUNT = 5
+PREDATOR_COUNT = 4
 PREDATOR_RADIUS = 15
 PREDATOR_INITIAL_ENERGY = 20
 PREDATOR_ENERGY_LOSS_PER_SECOND = 1
 PREDATOR_MAX_ENERGY = 80
-PREDATOR_SPEED = 2.3
-PREDATOR_EAT_GAIN = 8
+PREDATOR_SPEED = 2
+PREDATOR_EAT_GAIN = 4
 
 
 def create_predator(width, height, initial_energy=PREDATOR_INITIAL_ENERGY):
@@ -119,7 +119,7 @@ def apply_energy_and_collect_dead_predator(predators, dead_predators, energy_los
             predators.remove(predator)
 
 
-def handle_predator_eating(predators, prey_creatures, predator_radius, max_energy=None):
+def handle_predator_eating(predators, prey_creatures,dead_creature, predator_radius, max_energy=None):
     for predator in predators:
         for prey in prey_creatures[:]:
             distance = math.sqrt((predator["x"] - prey["x"]) ** 2 + (predator["y"] - prey["y"]) ** 2)
@@ -128,4 +128,7 @@ def handle_predator_eating(predators, prey_creatures, predator_radius, max_energ
                 if max_energy is not None:
                     predator["energy"] = min(max_energy, predator["energy"])
                 predator["score"] += 1
+                prey['energy']= min(0,prey['energy']-10)
+                prey['score'] += prey['survival_time']*0.2
+                dead_creature.append(prey)
                 prey_creatures.remove(prey)
