@@ -74,7 +74,7 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    update_creatures(creatures, food_list, WIDTH, HEIGHT, CREATURE_RADIUS)
+    update_creatures(creatures, food_list,predators ,WIDTH, HEIGHT, CREATURE_RADIUS)
     apply_energy_and_collect_dead(creatures, dead_creatures, ENERGY_LOSS_PER_SECOND, dt)
     handle_creature_eating(
         creatures, food_list, CREATURE_RADIUS, spawn_food, max_energy=MAX_ENERGY
@@ -84,7 +84,7 @@ while running:
     update_predator(predators, creatures, WIDTH, HEIGHT, PREDATOR_RADIUS)
     apply_energy_and_collect_dead_predator(predators, dead_predators, PREDATOR_ENERGY_LOSS_PER_SECOND, dt)
     handle_predator_eating(
-        predators, creatures, PREDATOR_RADIUS,  max_energy=PREDATOR_MAX_ENERGY)
+        predators, creatures,dead_creatures, PREDATOR_RADIUS,  max_energy=PREDATOR_MAX_ENERGY)
 
 
     screen.fill((20, 20, 30))
