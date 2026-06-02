@@ -2,14 +2,15 @@ import math
 import random
 import numpy as np
 
-from brain import Brain
+from creature_brain import Brain
 
 WIDTH, HEIGHT = 1280, 700
-NUM_CREATURES = 10
+NUM_CREATURES = 20
 CREATURE_RADIUS = 10
-INITIAL_ENERGY = 10
+INITIAL_ENERGY = 100
 ENERGY_LOSS_PER_SECOND = 1
 MAX_ENERGY = 150
+FOOD_ENERGY=10
 
 
 def spawn_creature(width, height, initial_energy=INITIAL_ENERGY):
@@ -17,8 +18,9 @@ def spawn_creature(width, height, initial_energy=INITIAL_ENERGY):
         "x": random.randint(50, width - 50),
         "y": random.randint(50, height - 50),
         "angle": random.uniform(0, 2 * math.pi),
-        "speed": 2,
+        "speed": 2.2,
         "score": 0,
+        "survival_time":0,
         "energy": initial_energy,
         "brain": Brain(),
     }
@@ -48,7 +50,7 @@ def create_next_generation(
     return new_creatures
 
 
-def update_creatures(creatures, food_list, width, height, creature_radius):
+def update_creatures(creatures, food_list,predators, width, height, creature_radius):
     for creature in creatures:
         nearest_dist = float("inf")
         food_dx, food_dy = 0, 0
@@ -68,8 +70,27 @@ def update_creatures(creatures, food_list, width, height, creature_radius):
         x_center = (creature["x"] - width / 2) / (width / 2)
         y_center = (creature["y"] - height / 2) / (height / 2)
 
+        predator_dx=predator_dy=0
+        predator_dist =  math.sqrt(height**2+width**2)
+        for predator in predators:
+            dx = predator['x'] - creature["x"]
+            dy = predator['y'] - creature["y"]
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < predator_dist:
+                predator_dist = dist
+                predator_dx = dx
+                predator_dy = dy
+
+        predator_angle = math.atan2(predator_dy, predator_dx)
+        predator_angle_diff = (predator_angle - creature["angle"] + math.pi) % (2 * math.pi) - math.pi
+        predator_dist_norm = predator_dist / math.sqrt(width * width + height * height)
+        
+
         inputs = np.array(
-            [
+               [math.cos(predator_angle_diff),
+                math.sin(predator_angle_diff),
+                predator_dist_norm,
+
                 math.cos(angle_diff),
                 math.sin(angle_diff),
                 dist_norm,
@@ -108,7 +129,9 @@ def update_creatures(creatures, food_list, width, height, creature_radius):
 def apply_energy_and_collect_dead(creatures, dead_creatures, energy_loss_per_second, dt):
     for creature in creatures[:]:
         creature["energy"] -= energy_loss_per_second * dt
+        creature['survival_time'] +=dt
         if creature["energy"] <= 0:
+            creature['score'] += creature['survival_time']*0.2
             dead_creatures.append(creature)
             creatures.remove(creature)
 
@@ -117,8 +140,8 @@ def handle_creature_eating(creatures, food_list, creature_radius, spawn_food, ma
     for creature in creatures:
         for food in food_list[:]:
             distance = math.sqrt((creature["x"] - food[0]) ** 2 + (creature["y"] - food[1]) ** 2)
-            if distance < creature_radius + 5:
-                creature["energy"] += 5
+            if distance < creature_radius + 10:
+                creature["energy"] += FOOD_ENERGY
                 if max_energy is not None:
                     creature["energy"] = min(max_energy, creature["energy"])
                 creature["score"] += 1
