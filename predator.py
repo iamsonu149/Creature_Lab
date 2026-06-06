@@ -6,21 +6,23 @@ from predator_brain import Brain
 
 PREDATOR_COUNT = 4
 PREDATOR_RADIUS = 15
-PREDATOR_INITIAL_ENERGY = 20
+PREDATOR_INITIAL_ENERGY = 25
 PREDATOR_ENERGY_LOSS_PER_SECOND = 1
 PREDATOR_MAX_ENERGY = 80
-PREDATOR_SPEED = 2
+PREDATOR_SPEED = 2.25
 PREDATOR_EAT_GAIN = 4
+PREDATOR_TOP_BRAINS = []
 
 
 def create_predator(width, height, initial_energy=PREDATOR_INITIAL_ENERGY):
     return {
-        "x": random.randint(50, width - 50),
-        "y": random.randint(50, height - 50),
+        "x": random.randint(10, width - 10),
+        "y": random.randint(10, height - 10),
         "angle": random.uniform(0, 2 * math.pi),
         "speed": PREDATOR_SPEED,
-        "score": 0,
+        "performance": 0,
         "energy": initial_energy,
+        "catch":0,
         "brain": Brain(),
     }
 
@@ -33,7 +35,7 @@ def next_generation_predator(
     initial_energy=PREDATOR_INITIAL_ENERGY,
 ):
     old_predators = list(old_predators)
-    old_predators.sort(key=lambda p: p["score"], reverse=True)
+    old_predators.sort(key=lambda p: p["performance"], reverse=True)
     parents = old_predators[:3]
 
     if not parents:
@@ -49,7 +51,7 @@ def next_generation_predator(
     return new_predators
 
 
-def update_predator(predators, prey_creatures, width, height, predator_radius):
+def update_predator(predators, prey_creatures, width, height, predator_radius,dt):
     for predator in predators:
         if not prey_creatures:
             predator["angle"] += random.uniform(-0.1, 0.1)
@@ -71,6 +73,11 @@ def update_predator(predators, prey_creatures, width, height, predator_radius):
             target_angle = math.atan2(target_dy, target_dx)
             angle_diff = (target_angle - predator["angle"] + math.pi) % (2 * math.pi) - math.pi
             dist_norm = nearest_dist / math.sqrt(width * width + height * height)
+            if nearest_dist <180:
+                catch= (180 - nearest_dist) / 180
+                health_ratio = min(2, PREDATOR_INITIAL_ENERGY / max(1, predator["energy"]))
+                predator["catch"] += catch * health_ratio * dt * 0.8
+
             x_center = (predator["x"] - width / 2) / (width / 2)
             y_center = (predator["y"] - height / 2) / (height / 2)
 
@@ -87,9 +94,9 @@ def update_predator(predators, prey_creatures, width, height, predator_radius):
 
             outputs = predator["brain"].think(inputs)
             turn = outputs[0]
-            move = (outputs[1] + 1) / 2
+            move =0.3+ 0.7*(outputs[1] + 1) / 2
 
-            predator["angle"] += turn * 0.2
+            predator["angle"] += turn * 0.1
             predator["x"] += math.cos(predator["angle"]) * move * predator["speed"]
             predator["y"] += math.sin(predator["angle"]) * move * predator["speed"]
 
@@ -115,6 +122,7 @@ def apply_energy_and_collect_dead_predator(predators, dead_predators, energy_los
     for predator in predators[:]:
         predator["energy"] -= energy_loss_per_second * dt
         if predator["energy"] <= 0:
+            predator['performance'] += predator['catch']
             dead_predators.append(predator)
             predators.remove(predator)
 
@@ -127,8 +135,12 @@ def handle_predator_eating(predators, prey_creatures,dead_creature, predator_rad
                 predator["energy"] += PREDATOR_EAT_GAIN
                 if max_energy is not None:
                     predator["energy"] = min(max_energy, predator["energy"])
-                predator["score"] += 1
-                prey['energy']= min(0,prey['energy']-10)
-                prey['score'] += prey['survival_time']*0.2
+                predator["performance"] += 1
+                prey['performance'] -= prey['performance'] * 0.3  # Moderate penalty for getting eaten
                 dead_creature.append(prey)
                 prey_creatures.remove(prey)
+
+def best_predators(old_predators,top_brain):
+    total_predators = old_predators + top_brain
+    total_predators.sort(key=lambda c: c["performance"], reverse=True)
+    return total_predators[:3]
