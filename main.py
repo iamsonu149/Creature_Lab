@@ -1,4 +1,5 @@
 import pygame
+import csv
 
 from creature import (
     spawn_creature,
@@ -7,11 +8,13 @@ from creature import (
     update_creatures,
     apply_energy_and_collect_dead,
     handle_creature_eating,
+    best_creatures,
     NUM_CREATURES,
     CREATURE_RADIUS,
     INITIAL_ENERGY,
     ENERGY_LOSS_PER_SECOND,
     MAX_ENERGY,
+    TOP_BRAINS,
 )
 
 from predator import (
@@ -20,11 +23,13 @@ from predator import (
     update_predator,
     apply_energy_and_collect_dead_predator,
     handle_predator_eating,
+    best_predators,
     PREDATOR_COUNT ,
     PREDATOR_RADIUS ,
     PREDATOR_INITIAL_ENERGY ,
     PREDATOR_ENERGY_LOSS_PER_SECOND,
     PREDATOR_MAX_ENERGY,
+    PREDATOR_TOP_BRAINS
 )
 
 pygame.init()
@@ -48,8 +53,14 @@ food_list = [spawn_food(WIDTH,HEIGHT) for _ in range(NUM_FOOD)]
 predators = [create_predator(WIDTH,HEIGHT,PREDATOR_INITIAL_ENERGY) for _ in range(PREDATOR_COUNT)]
 dead_predators =[]
 
+# Initialize CSV for recording performances
+with open('creature_performances.csv', mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Generation", "Average_Performance"])
 
-
+with open('predator_performances.csv', mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Generation", "Average_Performance"])
 
 running = True
 while running:
@@ -60,13 +71,35 @@ while running:
         generation += 1
         generation_timer = 0
         old_creatures = creatures + dead_creatures
+        for creature in old_creatures:
+            creature['performance'] += creature['survival_time']*0.16 - creature['fear']
+        
+        TOP_BRAINS = best_creatures(old_creatures,TOP_BRAINS)
+        
+        # Calculate and write the average performance of creatures for this generation
+        avg_creature_perf = sum(c['performance'] for c in old_creatures) / len(old_creatures) if old_creatures else 0
+        with open('creature_performances.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([generation - 1, avg_creature_perf])
+
         creatures = create_next_generation(
-            old_creatures, NUM_CREATURES, WIDTH, HEIGHT, INITIAL_ENERGY
+            TOP_BRAINS, NUM_CREATURES, WIDTH, HEIGHT, INITIAL_ENERGY
         )
         dead_creatures = []
         #################### predator ################################
+        for pred in predators:
+            pred['performance'] +=pred['catch']
         old_predators = predators + dead_predators
-        predators = next_generation_predator(old_predators,PREDATOR_COUNT,WIDTH, HEIGHT,
+        
+        PREDATOR_TOP_BRAINS = best_predators(old_predators,PREDATOR_TOP_BRAINS)
+        
+        # Calculate and write the average performance of predators for this generation
+        avg_predator_perf = sum(p['performance'] for p in old_predators) / len(old_predators) if old_predators else 0
+        with open('predator_performances.csv', mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([generation - 1, avg_predator_perf])
+                
+        predators = next_generation_predator(PREDATOR_TOP_BRAINS,PREDATOR_COUNT,WIDTH, HEIGHT,
                                               PREDATOR_INITIAL_ENERGY )
         dead_predators=[]
 
@@ -74,14 +107,14 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    update_creatures(creatures, food_list,predators ,WIDTH, HEIGHT, CREATURE_RADIUS)
+    update_creatures(creatures, food_list,predators ,WIDTH, HEIGHT, CREATURE_RADIUS,dt)
     apply_energy_and_collect_dead(creatures, dead_creatures, ENERGY_LOSS_PER_SECOND, dt)
     handle_creature_eating(
         creatures, food_list, CREATURE_RADIUS, spawn_food, max_energy=MAX_ENERGY
     )
     ######################### predator ##############################
 
-    update_predator(predators, creatures, WIDTH, HEIGHT, PREDATOR_RADIUS)
+    update_predator(predators, creatures, WIDTH, HEIGHT, PREDATOR_RADIUS,dt)
     apply_energy_and_collect_dead_predator(predators, dead_predators, PREDATOR_ENERGY_LOSS_PER_SECOND, dt)
     handle_predator_eating(
         predators, creatures,dead_creatures, PREDATOR_RADIUS,  max_energy=PREDATOR_MAX_ENERGY)
