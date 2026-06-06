@@ -7,10 +7,11 @@ from creature_brain import Brain
 WIDTH, HEIGHT = 1280, 700
 NUM_CREATURES = 20
 CREATURE_RADIUS = 10
-INITIAL_ENERGY = 100
+INITIAL_ENERGY = 30
 ENERGY_LOSS_PER_SECOND = 1
 MAX_ENERGY = 150
 FOOD_ENERGY=10
+TOP_BRAINS =[]
 
 
 def spawn_creature(width, height, initial_energy=INITIAL_ENERGY):
@@ -20,37 +21,42 @@ def spawn_creature(width, height, initial_energy=INITIAL_ENERGY):
         "angle": random.uniform(0, 2 * math.pi),
         "speed": 2.2,
         "score": 0,
+        "performance":0,
         "survival_time":0,
         "energy": initial_energy,
+        "fear":0,
         "brain": Brain(),
     }
 
 
 def create_next_generation(
-    old_creatures,
+    top_brains,  
     num_creatures=NUM_CREATURES,
     width=1280,
     height=700,
     initial_energy=INITIAL_ENERGY,
 ):
-    old_creatures = list(old_creatures)
-    old_creatures.sort(key=lambda c: c["score"], reverse=True)
-    parents = old_creatures[:3]
+    
 
-    if not parents:
+    if not top_brains:
         return [spawn_creature(width, height, initial_energy) for _ in range(num_creatures)]
 
     new_creatures = []
-    for _ in range(num_creatures):
-        parent = random.choice(parents)
+    for _ in range(num_creatures-1):
+        parent = random.choice(top_brains)
         child = spawn_creature(width, height, initial_energy)
         child["brain"] = parent["brain"].copy()
         child["brain"].mutate(rate=0.5, strength=0.1)
         new_creatures.append(child)
+    best_parent = top_brains[0]
+    elite = spawn_creature(width, height, initial_energy)
+    elite["brain"] = best_parent["brain"].copy()
+    new_creatures.append(elite)
+    
     return new_creatures
 
 
-def update_creatures(creatures, food_list,predators, width, height, creature_radius):
+def update_creatures(creatures, food_list,predators, width, height, creature_radius,dt):
     for creature in creatures:
         nearest_dist = float("inf")
         food_dx, food_dy = 0, 0
@@ -85,6 +91,12 @@ def update_creatures(creatures, food_list,predators, width, height, creature_rad
         predator_angle_diff = (predator_angle - creature["angle"] + math.pi) % (2 * math.pi) - math.pi
         predator_dist_norm = predator_dist / math.sqrt(width * width + height * height)
         
+        # Increase fear radius and penalty for high energy creatures
+        if predator_dist < 200:
+            danger = (200 - predator_dist) / 200
+            health_ratio = (creature["energy"] / INITIAL_ENERGY) * 2
+            creature["fear"] += danger * health_ratio * dt * 2.0
+            
 
         inputs = np.array(
                [math.cos(predator_angle_diff),
@@ -94,7 +106,7 @@ def update_creatures(creatures, food_list,predators, width, height, creature_rad
                 math.cos(angle_diff),
                 math.sin(angle_diff),
                 dist_norm,
-                creature["energy"] / INITIAL_ENERGY,
+                creature["energy"] / MAX_ENERGY,
                 x_center,
                 y_center,
             ]
@@ -102,9 +114,9 @@ def update_creatures(creatures, food_list,predators, width, height, creature_rad
 
         outputs = creature["brain"].think(inputs)
         turn = outputs[0]
-        move = (outputs[1] + 1) / 2
+        move = 0.3 +0.7*(outputs[1] + 1) / 2
 
-        creature["angle"] += turn * 0.2
+        creature["angle"] += turn * 0.12
         creature["x"] += math.cos(creature["angle"]) * move * creature["speed"]
         creature["y"] += math.sin(creature["angle"]) * move * creature["speed"]
 
@@ -129,9 +141,8 @@ def update_creatures(creatures, food_list,predators, width, height, creature_rad
 def apply_energy_and_collect_dead(creatures, dead_creatures, energy_loss_per_second, dt):
     for creature in creatures[:]:
         creature["energy"] -= energy_loss_per_second * dt
-        creature['survival_time'] +=dt
+        creature['survival_time'] +=dt  
         if creature["energy"] <= 0:
-            creature['score'] += creature['survival_time']*0.2
             dead_creatures.append(creature)
             creatures.remove(creature)
 
@@ -144,9 +155,15 @@ def handle_creature_eating(creatures, food_list, creature_radius, spawn_food, ma
                 creature["energy"] += FOOD_ENERGY
                 if max_energy is not None:
                     creature["energy"] = min(max_energy, creature["energy"])
-                creature["score"] += 1
+                creature["score"] += 2
+                creature['performance'] +=2
                 food_list.remove(food)
                 food_list.append(spawn_food(WIDTH,HEIGHT))
 
 def spawn_food(WIDTH,HEIGHT):
     return [random.randint(20, WIDTH - 20), random.randint(20, HEIGHT - 20)]
+
+def best_creatures(old_creatures,top_brain):
+    total_creatures = old_creatures + top_brain
+    total_creatures.sort(key=lambda c: c["performance"], reverse=True)
+    return total_creatures[:5]
